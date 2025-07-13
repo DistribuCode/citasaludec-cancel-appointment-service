@@ -1,0 +1,13 @@
+# Ignorar archivos de configuración sensibles
+.env
+
+# Ignorar archivos compilados de Python
+__pycache__/
+*.py[cod]
+
+# Ignorar logs
+*.log
+
+# Ignorar archivos temporales
+*.swp
+*.swo
