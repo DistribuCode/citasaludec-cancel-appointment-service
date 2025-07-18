@@ -1,20 +1,20 @@
-# Usa una imagen Node para construir
-FROM node:18 as build
+FROM python:3.9-slim
 
+# Set working directory
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy the rest of the app
 COPY . .
-RUN npm run build
 
-# Usa Nginx para servir archivos estáticos
-FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
+# Expose API port
+EXPOSE 4008
 
-# Copia una configuración mínima opcional
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Set execution permissions for wait script if you have it (optional)
+# RUN chmod +x wait-for-it.sh
 
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# Run the app with Uvicorn
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "4008"]
