@@ -37,16 +37,47 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🔑 Decode EC2 SSH key
+      - name: 🔑 Create EC2 SSH key file
         run: |
-          echo "${{ secrets.EC2_KEY }}" | base64 -d > auth-key.pem
+          echo "${{ secrets.EC2_KEY }}" > auth-key.pem
           chmod 600 auth-key.pem
 
       - name: 🚀 Deploy to EC2 via SSH
         run: |
           ssh -o StrictHostKeyChecking=no -i auth-key.pem ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+            # Crear red si no existe
+            docker network inspect my_network >/dev/null 2>&1 || docker network create my_network
+
+            # Iniciar base de datos cancel-appointment-db
+            docker stop cancel-appointment-db || true
+            docker rm cancel-appointment-db || true
+            docker volume create cancel_appointment_data || true
+            docker run -d \
+              --name cancel-appointment-db \
+              --network my_network \
+              -e POSTGRES_DB=cancel_appointment_db \
+              -e POSTGRES_USER=postgres \
+              -e POSTGRES_PASSWORD=mysecretpassword \
+              -v cancel_appointment_data:/var/lib/postgresql/data \
+              postgres:15
+
+            # Esperar a que esté lista
+            sleep 15
+
+            # Iniciar cancel-appointment-service
             docker pull jeffri1997/cancel-appointment-serv:qa
             docker stop cancel-appointment-serv || true
             docker rm cancel-appointment-serv || true
-            docker run -d --name cancel-appointment-serv -p 4011:4011 jeffri1997/cancel-appointment-serv:qa
+            docker run -d \
+              --name cancel-appointment-serv \
+              --network my_network \
+              -p 4008:4008 \
+              -e PORT=4008 \
+              -e DB_HOST=cancel-appointment-db \
+              -e DB_PORT=5432 \
+              -e DB_USER=postgres \
+              -e DB_PASSWORD=mysecretpassword \
+              -e DB_NAME=cancel_appointment_db \
+              -e JWT_SECRET=supersecretkey \
+              jeffri1997/cancel-appointment-serv:qa
           EOF
