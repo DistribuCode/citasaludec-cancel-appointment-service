@@ -1,4 +1,4 @@
-name: Build and Push to Docker Hub - cancel-appointment-serv
+name: Build and Deploy - cancel-appointment-serv
 
 on:
   push:
@@ -28,3 +28,25 @@ jobs:
           context: .
           push: true
           tags: jeffri1997/cancel-appointment-serv:qa
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Decode EC2 SSH key
+        run: |
+          echo "${{ secrets.EC2_KEY }}" | base64 -d > auth-key.pem
+          chmod 600 auth-key.pem
+
+      - name: 🚀 Deploy to EC2 via SSH
+        run: |
+          ssh -o StrictHostKeyChecking=no -i auth-key.pem ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+            docker pull jeffri1997/cancel-appointment-serv:qa
+            docker stop cancel-appointment-serv || true
+            docker rm cancel-appointment-serv || true
+            docker run -d --name cancel-appointment-serv -p 4011:4011 jeffri1997/cancel-appointment-serv:qa
+          EOF
